@@ -258,6 +258,16 @@ textarea::placeholder{color:var(--muted);}
 </div>
 
 <script>
+
+const getApiKey=()=>localStorage.getItem('habib_api_key')||'';
+function checkApiKey(){
+  if(!getApiKey()){
+    const k=prompt('🔑 Entrez votre clé API Anthropic (sk-ant-...) :');
+    if(k&&k.startsWith('sk-ant')){localStorage.setItem('habib_api_key',k);showNotif('✅ Clé API sauvegardée','ok');}
+    else if(k){showNotif('⚠️ Clé invalide — doit commencer par sk-ant-','err');}
+  }
+}
+
 const SHEETS_URL='https://script.google.com/macros/s/AKfycbw0zBHwC76EgQ4Iv38dk6mBldsn9dUi3PoYLqBKZ0SLUxIbDMldBmgLUSAizlID2xjf/exec';
 const SYSTEM_PROMPT=`Tu es l'assistant quotidien de Hatem, propriétaire de l'Auto-École El Habib en Tunisie.
 Rôle : planification journalière, gestion des tâches, lecture/création Calendar, bilan soir.
@@ -463,7 +473,7 @@ async function sendMessage(text){
   appendMsg('user',msg);chatHistory.push({role:'user',content:msg});
   isLoading=true;document.getElementById('sendBtn').disabled=true;showTyping();
   try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':getApiKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYSTEM_PROMPT,messages:chatHistory,
         mcp_servers:[{type:'url',url:'https://gcal.mcp.claude.com/mcp',name:'google-calendar'}]})});
     const data=await res.json();removeTyping();
@@ -599,7 +609,7 @@ async function loadCalendar(){
   c.innerHTML=`<div class="loading-row"><div class="spin"></div> Lecture Google Calendar…</div>`;
   const today=new Date().toLocaleDateString('fr-TN',{weekday:'long',day:'numeric',month:'long'});
   try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':getApiKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,
         system:`Lis Google Calendar. Renvoie uniquement un JSON valide sans backticks. Format: {"events":[{"title":"...","start":"HH:MM","end":"HH:MM","location":"...","category":"ae|perso|finance|health"}]} Si vide: {"events":[]}`,
         messages:[{role:'user',content:`Événements Google Calendar aujourd'hui (${today}). JSON uniquement.`}],
@@ -714,6 +724,7 @@ function showNotif(msg,type=''){
 // INIT
 // ═══════════════════════════════
 window.addEventListener('load', async ()=>{
+  checkApiKey();
   const tasksLoaded=await loadTasksFromSheets();
   const objLoaded=await loadObjectivesFromSheets();
   renderTasks();renderObjectives();

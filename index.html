@@ -107,6 +107,14 @@ textarea::placeholder{color:var(--muted);}
 .prio-low{background:#e8f5e9;color:var(--green);}
 .task-del{font-size:.75rem;color:var(--muted);cursor:pointer;padding:3px 5px;border-radius:4px;}
 .task-del:hover{color:var(--red);background:#fde8e8;}
+/* ── NOUVEAUX BOUTONS SYNC ── */
+.task-sync-btns{display:flex;gap:4px;flex-shrink:0;}
+.sync-btn{font-size:.68rem;padding:3px 7px;border-radius:20px;cursor:pointer;border:1px solid var(--border);background:var(--bg3);transition:all .2s;line-height:1.4;font-family:'DM Sans',sans-serif;}
+.sync-btn.gcal{color:var(--blue);}
+.sync-btn.gcal:hover{background:var(--blue);color:#fff;border-color:var(--blue);}
+.sync-btn.rappel{color:var(--purple);}
+.sync-btn.rappel:hover{background:var(--purple);color:#fff;border-color:var(--purple);}
+.sync-btn:disabled{opacity:.4;cursor:default;}
 .save-indicator{font-size:.65rem;color:var(--muted);text-align:center;padding:4px;transition:all .3s;}
 .save-indicator.saving{color:var(--gold2);}
 .save-indicator.saved{color:var(--green);}
@@ -137,21 +145,28 @@ textarea::placeholder{color:var(--muted);}
 .obj-del{background:transparent;border:none;color:var(--muted);font-size:.8rem;cursor:pointer;padding:3px 5px;}
 .obj-del:hover{color:var(--red);}
 /* CALENDAR */
-.cal-event{display:flex;gap:12px;padding:11px 14px;background:var(--bg2);border-left:3px solid var(--gold);margin-bottom:7px;border-radius:0 8px 8px 0;box-shadow:var(--shadow);}
+.cal-event{display:flex;gap:12px;padding:11px 14px;background:var(--bg2);border-left:3px solid var(--gold);margin-bottom:7px;border-radius:0 8px 8px 0;box-shadow:var(--shadow);position:relative;}
 .cal-event.perso{border-left-color:var(--blue);}
 .cal-event.finance{border-left-color:var(--green);}
 .cal-event.health{border-left-color:var(--purple);}
 .cal-time{font-family:'Cormorant Garamond',serif;font-size:.95rem;color:var(--gold);white-space:nowrap;min-width:46px;}
 .cal-title{font-size:.85rem;margin-bottom:2px;color:var(--text);}
 .cal-loc{font-size:.7rem;color:var(--muted);}
+/* Bouton rappel sur chaque événement agenda */
+.cal-rappel-btn{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:.68rem;padding:3px 8px;border-radius:20px;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--purple);transition:all .2s;font-family:'DM Sans',sans-serif;}
+.cal-rappel-btn:hover{background:var(--purple);color:#fff;border-color:var(--purple);}
 .no-data{text-align:center;color:var(--muted);font-size:.8rem;padding:28px;border:1px dashed var(--border);border-radius:8px;background:var(--bg2);}
 .spin{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;display:inline-block;}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-row{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:.8rem;padding:18px;}
-.notif{position:fixed;top:14px;right:14px;background:#fff;border-left:4px solid var(--gold);color:var(--text);padding:10px 16px;border-radius:8px;font-size:.8rem;z-index:999;animation:slideIn .3s ease;max-width:260px;box-shadow:0 4px 16px rgba(0,0,0,.12);}
+.notif{position:fixed;top:14px;right:14px;background:#fff;border-left:4px solid var(--gold);color:var(--text);padding:10px 16px;border-radius:8px;font-size:.8rem;z-index:999;animation:slideIn .3s ease;max-width:280px;box-shadow:0 4px 16px rgba(0,0,0,.12);line-height:1.5;}
 .notif.ok{border-left-color:var(--green);}
 .notif.err{border-left-color:var(--red);}
+.notif.info{border-left-color:var(--blue);}
 @keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+/* Bannière aide sync */
+.sync-help{background:linear-gradient(135deg,rgba(41,128,185,.07),rgba(142,68,173,.07));border:1px solid rgba(41,128,185,.2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:.75rem;color:var(--muted);line-height:1.6;}
+.sync-help strong{color:var(--text);}
 </style>
 </head>
 <body>
@@ -235,7 +250,8 @@ textarea::placeholder{color:var(--muted);}
     <input type="text" id="evtTitle" placeholder="Titre de l'événement" style="flex:2;min-width:110px">
     <input type="datetime-local" id="evtStart" style="flex:1;min-width:90px">
     <input type="datetime-local" id="evtEnd" style="flex:1;min-width:90px">
-    <button class="add-bar-btn outline" onclick="addCalEvent()">+ Événement</button>
+    <button class="add-bar-btn" onclick="addCalEvent()">📅 + GCal</button>
+    <button class="add-bar-btn outline" onclick="addRappelFromForm()">🔔 + Rappel</button>
   </div>
 </div>
 
@@ -289,7 +305,6 @@ async function fetchSheets(action){
   try{const r=await fetch(`${SHEETS_URL}?action=${action}`);return await r.json();}
   catch(e){return{data:[]};}
 }
-
 async function postSheets(action,data){
   try{
     const body=new FormData();
@@ -301,7 +316,7 @@ async function postSheets(action,data){
 }
 
 // ═══════════════════════════════
-// SAUVEGARDE TÂCHES (avec délai)
+// SAUVEGARDE TÂCHES
 // ═══════════════════════════════
 function scheduleSaveTasks(){
   const ind=document.getElementById('taskSaveIndicator');
@@ -316,7 +331,6 @@ function scheduleSaveTasks(){
     }
   },1500);
 }
-
 function scheduleSaveObjectives(){
   const ind=document.getElementById('objSaveIndicator');
   if(ind){ind.textContent='⏳ Sauvegarde…';ind.className='save-indicator saving';}
@@ -346,7 +360,6 @@ async function loadTasksFromSheets(){
       }
     }
   }catch(e){}
-  // Tâches par défaut si rien en Sheets
   tasks=[
     {id:1,text:"Relancer Oumayma Mezni — examen manœuvre 15/04",domain:"ae",prio:"high",done:false},
     {id:2,text:"Relancer Syrine Reguigui — examen manœuvre 04/04",domain:"ae",prio:"high",done:false},
@@ -354,7 +367,6 @@ async function loadTasksFromSheets(){
   ];
   return false;
 }
-
 async function loadObjectivesFromSheets(){
   try{
     const res=await fetchSheets('get_objectifs');
@@ -367,7 +379,6 @@ async function loadObjectivesFromSheets(){
       }
     }
   }catch(e){}
-  // Objectifs par défaut si rien en Sheets
   objectives=[
     {id:1,title:"Nouveaux élèves inscrits",target:5,current:1,unit:"élèves",period:"month",domain:"ae"},
     {id:2,title:"Encaissements Formation",target:2000,current:800,unit:"TND",period:"month",domain:"fin"},
@@ -388,7 +399,6 @@ async function loadDashboard(){
   try{paiData=(await fetchSheets('eleves_impayés')).data||[];}catch(e){}
   try{banData=(await fetchSheets('solde_banque')).data||[];}catch(e){}
   try{lecData=(await fetchSheets('lecons_jour')).data||[];}catch(e){}
-
   const impayes=paiData.filter(r=>r[PAY.STATUT]==='En attente'||r[PAY.STATUT]==='À payer');
   const totalImpayes=impayes.reduce((s,r)=>{const m=parseFloat(r[PAY.MONTANT]);return s+(isNaN(m)?0:m);},0);
   const banRows=banData.filter(r=>r[BNQ.SOLDE]!==undefined&&r[BNQ.SOLDE]!=='');
@@ -473,17 +483,32 @@ function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrol
 function renderTasks(){
   const c=document.getElementById('tasksList');
   const done=tasks.filter(t=>t.done).length,pct=tasks.length?Math.round(done/tasks.length*100):0;
-  let html=`<div class="progress-label">${done} / ${tasks.length} tâches accomplies</div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>`;
+  let html=`<div class="sync-help">
+    <strong>📅 Bouton bleu</strong> = envoyer la tâche vers <strong>Google Agenda</strong> &nbsp;|&nbsp;
+    <strong>🔔 Bouton violet</strong> = créer un <strong>Rappel Apple</strong> (iPhone/Mac)
+  </div>`;
+  html+=`<div class="progress-label">${done} / ${tasks.length} tâches accomplies</div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>`;
   Object.entries(DOMAINS).forEach(([k,d])=>{
     const dt=tasks.filter(t=>t.domain===k);if(!dt.length)return;
     html+=`<div class="domain-block"><div class="domain-title">${d.label}</div>`;
-    dt.forEach(t=>{const pm={high:'prio-high',med:'prio-med',low:'prio-low'},pl={high:'Urgent',med:'Normal',low:'Faible'};
-      html+=`<div class="task-item ${t.done?'done':''}" onclick="toggleTask(${t.id})"><div class="task-cb">${t.done?'✓':''}</div><div class="task-text">${t.text}</div><span class="task-prio ${pm[t.prio]}">${pl[t.prio]}</span><span class="task-del" onclick="event.stopPropagation();deleteTask(${t.id})">✕</span></div>`;
+    dt.forEach(t=>{
+      const pm={high:'prio-high',med:'prio-med',low:'prio-low'},pl={high:'Urgent',med:'Normal',low:'Faible'};
+      html+=`<div class="task-item ${t.done?'done':''}" onclick="toggleTask(${t.id})">
+        <div class="task-cb">${t.done?'✓':''}</div>
+        <div class="task-text">${t.text}</div>
+        <span class="task-prio ${pm[t.prio]}">${pl[t.prio]}</span>
+        <div class="task-sync-btns">
+          <button class="sync-btn gcal" title="Ajouter à Google Agenda" onclick="event.stopPropagation();prepareTaskForCal(${t.id})">📅</button>
+          <button class="sync-btn rappel" title="Créer un Rappel Apple" onclick="event.stopPropagation();syncTaskToReminders(${t.id})">🔔</button>
+        </div>
+        <span class="task-del" onclick="event.stopPropagation();deleteTask(${t.id})">✕</span>
+      </div>`;
     });html+=`</div>`;
   });
   if(!tasks.length)html+=`<div class="no-data">Aucune tâche — ajoutez-en ci-dessous</div>`;
   c.innerHTML=html;
 }
+
 function addTask(){
   const t=document.getElementById('taskInput').value.trim();if(!t)return;
   tasks.push({id:++taskSeq,text:t,domain:document.getElementById('taskDomain').value,prio:document.getElementById('taskPrio').value,done:false});
@@ -492,6 +517,57 @@ function addTask(){
 }
 function toggleTask(id){const t=tasks.find(t=>t.id===id);if(t){t.done=!t.done;renderTasks();scheduleSaveTasks();}}
 function deleteTask(id){tasks=tasks.filter(t=>t.id!==id);renderTasks();scheduleSaveTasks();}
+
+// ═══════════════════════════════
+// 📅 SYNC TÂCHE → GOOGLE AGENDA
+// Pré-remplit l'onglet Agenda et bascule dessus
+// ═══════════════════════════════
+function prepareTaskForCal(id){
+  const t=tasks.find(t=>t.id===id);
+  if(!t)return;
+
+  // Pré-remplir le titre dans l'onglet Agenda
+  document.getElementById('evtTitle').value=t.text;
+
+  // Date par défaut = demain 09:00
+  const tom=new Date();
+  tom.setDate(tom.getDate()+1);
+  tom.setHours(9,0,0,0);
+  const end=new Date(tom.getTime()+3600000);
+  const pad=x=>String(x).padStart(2,'0');
+  const fmt=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
+  document.getElementById('evtStart').value=fmt(tom);
+  document.getElementById('evtEnd').value=fmt(end);
+
+  // Aller sur l'onglet Agenda
+  switchTab('cal');
+
+  showNotif('📅 Titre pré-rempli — ajustez l\'heure puis cliquez "+ GCal"','info');
+}
+
+// ═══════════════════════════════
+// 🔔 SYNC TÂCHE → RAPPELS APPLE
+// Utilise le URL scheme reminders:// (Mac + iPhone)
+// ═══════════════════════════════
+function syncTaskToReminders(id){
+  const t=tasks.find(t=>t.id===id);
+  if(!t)return;
+
+  const titre=encodeURIComponent(t.text);
+  const notes=encodeURIComponent('Auto-École El Habib — '+( DOMAINS[t.domain]?.label||t.domain));
+
+  // Copier dans le presse-papier (fallback si URL scheme échoue)
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(t.text).catch(()=>{});
+  }
+
+  // Ouvrir l'app Rappels avec le texte pré-rempli
+  // Fonctionne sur macOS + iOS via URL scheme natif Apple
+  const url=`reminders://x-callback-url/add?title=${titre}&notes=${notes}`;
+  window.location.href=url;
+
+  showNotif('🔔 Rappel envoyé vers l\'app Rappels\n(texte copié dans le presse-papier)','ok');
+}
 
 // ═══════════════════════════════
 // OBJECTIVES
@@ -516,7 +592,7 @@ function incObj(id){const o=objectives.find(o=>o.id===id);if(o&&o.current<o.targ
 function delObj(id){objectives=objectives.filter(o=>o.id!==id);renderObjectives();scheduleSaveObjectives();}
 
 // ═══════════════════════════════
-// CALENDAR
+// CALENDAR — Lecture
 // ═══════════════════════════════
 async function loadCalendar(){
   const c=document.getElementById('calList');
@@ -534,33 +610,110 @@ async function loadCalendar(){
     renderCalendar(events);
   }catch(err){c.innerHTML=`<div class="no-data">⚠️ ${err.message}</div>`;}
 }
+
 function renderCalendar(events){
   const c=document.getElementById('calList');
   const day=new Date().toLocaleDateString('fr-TN',{weekday:'long',day:'numeric',month:'long'});
   let html=`<div class="section-hd">Agenda — ${day}</div>`;
-  if(!events.length){html+=`<div class="no-data">Aucun événement pour aujourd'hui<br><span style="font-size:.72rem">Ajoutez des événements ci-dessous</span></div>`;}
-  else{const cc={perso:'perso',finance:'finance',health:'health'};events.forEach(ev=>{html+=`<div class="cal-event ${cc[ev.category]||''}"><div class="cal-time">${ev.start||'—'}</div><div><div class="cal-title">${ev.title}</div>${ev.location?`<div class="cal-loc">📍 ${ev.location}</div>`:''}</div><div class="cal-time" style="color:var(--muted);font-size:.72rem">${ev.end||''}</div></div>`;});}
+  if(!events.length){
+    html+=`<div class="no-data">Aucun événement pour aujourd'hui<br><span style="font-size:.72rem">Ajoutez des événements ci-dessous</span></div>`;
+  }else{
+    const cc={perso:'perso',finance:'finance',health:'health'};
+    events.forEach((ev,i)=>{
+      const evTitle=encodeURIComponent(ev.title||'');
+      const evNotes=encodeURIComponent('Google Agenda — '+(ev.location||''));
+      html+=`<div class="cal-event ${cc[ev.category]||''}">
+        <div class="cal-time">${ev.start||'—'}</div>
+        <div style="flex:1">
+          <div class="cal-title">${ev.title}</div>
+          ${ev.location?`<div class="cal-loc">📍 ${ev.location}</div>`:''}
+        </div>
+        <div class="cal-time" style="color:var(--muted);font-size:.72rem">${ev.end||''}</div>
+        <button class="cal-rappel-btn" title="Rappel Apple" onclick="createRappelFromEvent('${ev.title}','${ev.start||''}')">🔔</button>
+      </div>`;
+    });
+  }
   c.innerHTML=html;
+
+  // Pré-remplir les heures par défaut dans le formulaire
   const n=new Date(),pad=x=>String(x).padStart(2,'0'),dt=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}T`;
   document.getElementById('evtStart').value=dt+`${pad(n.getHours())}:00`;
   document.getElementById('evtEnd').value=dt+`${pad(n.getHours()+1)}:00`;
 }
+
+// ═══════════════════════════════
+// 📅 CRÉER ÉVÉNEMENT GCAL depuis formulaire Agenda
+// ═══════════════════════════════
 async function addCalEvent(){
-  const title=document.getElementById('evtTitle').value.trim(),start=document.getElementById('evtStart').value,end=document.getElementById('evtEnd').value;
-  if(!title||!start){showNotif('⚠️ Titre et heure requis','err');return;}
-  const s=new Date(start),e=end?new Date(end):new Date(s.getTime()+3600000);
-  switchTab('chat');quickSend(`Crée un événement Google Calendar : "${title}", du ${s.toISOString()} au ${e.toISOString()}.`);
+  const title=document.getElementById('evtTitle').value.trim();
+  const start=document.getElementById('evtStart').value;
+  const end=document.getElementById('evtEnd').value;
+  if(!title||!start){showNotif('⚠️ Titre et heure de début requis','err');return;}
+
+  const s=new Date(start);
+  const e=end?new Date(end):new Date(s.getTime()+3600000);
+  const dateFr=s.toLocaleDateString('fr-TN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const heureStr=s.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' — '+e.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+
+  showNotif('📅 Création dans Google Agenda…','info');
+
+  // Basculer sur Chat et envoyer via MCP
+  switchTab('chat');
+  quickSend(`Crée un événement Google Calendar :
+- Titre : "${title}"
+- Date : ${dateFr}
+- Heure : ${heureStr}
+- ISO start : ${s.toISOString()}
+- ISO end : ${e.toISOString()}
+Confirme quand c'est fait.`);
+
   document.getElementById('evtTitle').value='';
 }
 
+// ═══════════════════════════════
+// 🔔 RAPPEL DEPUIS FORMULAIRE AGENDA
+// ═══════════════════════════════
+function addRappelFromForm(){
+  const title=document.getElementById('evtTitle').value.trim();
+  const start=document.getElementById('evtStart').value;
+  if(!title){showNotif('⚠️ Entrez d\'abord un titre','err');return;}
+  const notes=start?'Prévu le '+new Date(start).toLocaleString('fr-TN'):'';
+  ouvrirRappels(title,notes);
+}
+
+// 🔔 Rappel depuis un événement agenda affiché
+function createRappelFromEvent(title,heure){
+  ouvrirRappels(decodeURIComponent(title||''),'Google Agenda — '+heure);
+}
+
+// ═══════════════════════════════
+// CORE : ouvrir l'app Rappels Apple
+// reminders:// fonctionne sur macOS 12+ et iOS
+// ═══════════════════════════════
+function ouvrirRappels(title,notes=''){
+  if(!title)return;
+  // Copier dans le presse-papier (utile si URL scheme bloqué)
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(title).catch(()=>{});
+  }
+  const url=`reminders://x-callback-url/add?title=${encodeURIComponent(title)}&notes=${encodeURIComponent(notes||'Auto-École El Habib')}`;
+  window.location.href=url;
+  showNotif('🔔 Ouverture Rappels Apple…\n"'+title.substring(0,40)+(title.length>40?'…':'')+'"','ok');
+}
+
 // NOTIF
-function showNotif(msg,type=''){const el=document.createElement('div');el.className='notif '+type;el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),3000);}
+function showNotif(msg,type=''){
+  const el=document.createElement('div');
+  el.className='notif '+(type||'');
+  el.textContent=msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),4000);
+}
 
 // ═══════════════════════════════
 // INIT
 // ═══════════════════════════════
 window.addEventListener('load', async ()=>{
-  // Charger tâches et objectifs depuis Sheets
   const tasksLoaded=await loadTasksFromSheets();
   const objLoaded=await loadObjectivesFromSheets();
   renderTasks();renderObjectives();
@@ -568,7 +721,7 @@ window.addEventListener('load', async ()=>{
   const h=new Date().getHours();
   const greet=h<7?'Bonjour Hatem ! Très tôt ce matin 🌙':h<12?'Bonjour Hatem ! ☀️ Bonne journée à l\'Auto-École El Habib !':h<18?'Bon après-midi Hatem !':'Bonsoir Hatem ! 🌙';
   const syncMsg=tasksLoaded&&objLoaded?' Tâches & objectifs chargés depuis Google Sheets ✓':' Données initialisées.';
-  appendMsg('assistant',greet+'\n\n'+syncMsg+'\n\nVotre assistant est prêt.');
+  appendMsg('assistant',greet+'\n\n'+syncMsg+'\n\nVotre assistant est prêt.\n\n📅 Sur chaque tâche : bouton bleu = Google Agenda | bouton violet = Rappels Apple.');
   loadDashboard();
 });
 </script>
